@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:test_project/models/user.dart';
-import 'package:test_project/services/cloudinary_service.dart';
-import 'package:test_project/utils/message_type.dart';
-import 'package:test_project/widgets/app_message_notifier.dart';
+import '/models/user.dart';
+import '/services/cloudinary_service.dart';
+import '/utils/message_type.dart';
+import '/widgets/app_message_notifier.dart';
 
 class AuthService {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;

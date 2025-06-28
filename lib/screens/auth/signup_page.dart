@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:test_project/services/auth/auth_service.dart';
-import 'package:test_project/utils/responsive_extension.dart';
-import 'package:test_project/utils/responsive_helper.dart';
-import 'package:test_project/utils/responsive_widget.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../controllers/auth_controller.dart';
+import '../../utils/message_type.dart';
+import '../../utils/responsive_extension.dart';
+import '../../utils/responsive_helper.dart';
+import '../../utils/responsive_widget.dart';
+import '../../widgets/app_message_notifier.dart';
 
-class SignUpScreen extends StatefulWidget {
+class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
 
   @override
-  SignUpScreenState createState() => SignUpScreenState();
+  ConsumerState<SignUpScreen> createState() => _SignUpScreenState();
 }
 
-class SignUpScreenState extends State<SignUpScreen> {
+class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -20,7 +23,6 @@ class SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  final AuthService _authService = AuthService();
 
   @override
   void dispose() {
@@ -33,6 +35,27 @@ class SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final authController = ref.watch(authControllerProvider);
+
+    // Listen to auth controller state changes
+    ref.listen<AuthControllerState>(authControllerProvider, (previous, next) {
+      if (next.isError) {
+        AppNotifier.show(
+          context,
+          next.error ?? 'Sign up failed',
+          type: MessageType.error,
+        );
+      } else if (next.isSuccess) {
+        AppNotifier.show(
+          context,
+          'Account created successfully!',
+          type: MessageType.success,
+        );
+        _emailController.clear();
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -61,9 +84,12 @@ class SignUpScreenState extends State<SignUpScreen> {
                     desktop: 40.0,
                   ),
                 ),
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/auth');
-                },
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          Navigator.pushReplacementNamed(context, '/auth');
+                        },
               ),
             ),
           ],
@@ -185,6 +211,8 @@ class SignUpScreenState extends State<SignUpScreen> {
   }
 
   Widget _buildFormContent(BuildContext context, ThemeData theme) {
+    final authController = ref.watch(authControllerProvider);
+
     return Form(
       key: _formKey,
       child: Column(
@@ -236,6 +264,7 @@ class SignUpScreenState extends State<SignUpScreen> {
           // 📧 Email Field
           TextFormField(
             controller: _emailController,
+            enabled: !authController.isLoading,
             style: context.responsiveBodyLarge.copyWith(
               color: theme.primaryColor,
             ),
@@ -268,6 +297,10 @@ class SignUpScreenState extends State<SignUpScreen> {
                 borderRadius: BorderRadius.circular(context.smallSpacing),
                 borderSide: BorderSide(color: theme.primaryColor, width: 2),
               ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(context.smallSpacing),
+                borderSide: BorderSide(color: Colors.grey.shade400),
+              ),
             ),
             validator: (value) {
               if (value?.isEmpty ?? true) {
@@ -286,6 +319,7 @@ class SignUpScreenState extends State<SignUpScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            enabled: !authController.isLoading,
             style: context.responsiveBodyLarge.copyWith(
               color: theme.primaryColor,
             ),
@@ -318,6 +352,10 @@ class SignUpScreenState extends State<SignUpScreen> {
                 borderRadius: BorderRadius.circular(context.smallSpacing),
                 borderSide: BorderSide(color: theme.primaryColor, width: 2),
               ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(context.smallSpacing),
+                borderSide: BorderSide(color: Colors.grey.shade400),
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -329,11 +367,14 @@ class SignUpScreenState extends State<SignUpScreen> {
                     desktop: 28.0,
                   ),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
               ),
             ),
             validator: (value) {
@@ -351,6 +392,7 @@ class SignUpScreenState extends State<SignUpScreen> {
           TextFormField(
             controller: _confirmPasswordController,
             obscureText: _obscureConfirmPassword,
+            enabled: !authController.isLoading,
             style: context.responsiveBodyLarge.copyWith(
               color: theme.primaryColor,
             ),
@@ -383,6 +425,10 @@ class SignUpScreenState extends State<SignUpScreen> {
                 borderRadius: BorderRadius.circular(context.smallSpacing),
                 borderSide: BorderSide(color: theme.primaryColor, width: 2),
               ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(context.smallSpacing),
+                borderSide: BorderSide(color: Colors.grey.shade400),
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscureConfirmPassword
@@ -396,16 +442,19 @@ class SignUpScreenState extends State<SignUpScreen> {
                     desktop: 28.0,
                   ),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _obscureConfirmPassword = !_obscureConfirmPassword;
-                  });
-                },
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
               ),
             ),
             validator: (value) {
               if (value?.isEmpty ?? true) {
-                return 'Please Re-Enter your password';
+                return 'Please confirm your password';
               }
               if (value != _passwordController.text) {
                 return 'Passwords do not match';
@@ -413,74 +462,83 @@ class SignUpScreenState extends State<SignUpScreen> {
               return null;
             },
           ),
-          SizedBox(height: context.mediumSpacing),
-          // 🔓 Continue Button
-          SizedBox(
-            width: double.infinity,
-            height: ResponsiveHelper.getValue(
-              context,
-              mobile: 50.0,
-              tablet: 55.0,
-              desktop: 60.0,
-            ),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.primaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(context.smallSpacing),
-                ),
+          SizedBox(height: context.largeSpacing),
+          // 📝 Sign Up Button
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.primaryColor,
+              padding: EdgeInsets.symmetric(
+                vertical: context.mediumSpacing,
+                horizontal: context.largeSpacing,
               ),
-              onPressed: () async {
-                if (_formKey.currentState!.validate()) {
-                  String email = _emailController.text.trim();
-                  String password = _passwordController.text.trim();
-                  bool result = await _authService.signUp(
-                    email: email,
-                    password: password,
-                    context: context,
-                  );
-                  if (result) {
-                    _emailController.clear();
-                    _passwordController.clear();
-                    _confirmPasswordController.clear();
-                  }
-                }
-              },
-              child: Text(
-                'Continue',
-                style: context.responsiveTitleLarge.copyWith(
-                  color: Colors.white,
-                ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(context.smallSpacing),
               ),
             ),
+            onPressed:
+                authController.isLoading
+                    ? null
+                    : () async {
+                      if (_formKey.currentState!.validate()) {
+                        final success = await ref
+                            .read(authControllerProvider.notifier)
+                            .signUp(
+                              email: _emailController.text.trim(),
+                              password: _passwordController.text,
+                              role: 'user', // Default role, adjust as needed
+                              context: context,
+                            );
+                        if (success) {
+                          Navigator.pushReplacementNamed(
+                            context,
+                            '/profile_setup',
+                          );
+                        }
+                      }
+                    },
+            child:
+                authController.isLoading
+                    ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : Text(
+                      'SIGN UP',
+                      style: context.responsiveBodyLarge.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
           ),
-          SizedBox(height: context.smallSpacing),
-          // 🆕 Sign In Button
-          SizedBox(
-            width: double.infinity,
-            height: ResponsiveHelper.getValue(
-              context,
-              mobile: 50.0,
-              tablet: 55.0,
-              desktop: 60.0,
-            ),
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: theme.primaryColor),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(context.smallSpacing),
+          SizedBox(height: context.mediumSpacing),
+          // 🔗 Already have an account? Sign In
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Already have an account? ',
+                style: context.responsiveBodyMedium,
+              ),
+              TextButton(
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          Navigator.pushReplacementNamed(context, '/login');
+                        },
+                child: Text(
+                  'Sign In',
+                  style: context.responsiveBodyMedium.copyWith(
+                    color: theme.primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-              onPressed: () {
-                Navigator.pushNamed(context, '/login');
-              },
-              child: Text(
-                'Already have an account? SIGN IN',
-                style: context.responsiveBodyLarge.copyWith(
-                  color: theme.primaryColor,
-                ),
-              ),
-            ),
+            ],
           ),
         ],
       ),

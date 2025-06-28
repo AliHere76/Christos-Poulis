@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:test_project/services/auth/auth_service.dart';
-import 'package:test_project/utils/message_type.dart';
-import 'package:test_project/utils/responsive_extension.dart';
-import 'package:test_project/utils/responsive_helper.dart';
-import 'package:test_project/utils/responsive_widget.dart';
-import 'package:test_project/widgets/app_message_notifier.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../controllers/auth_controller.dart';
+import '../../providers/auth_providers.dart';
+import '../../utils/message_type.dart';
+import '../../utils/responsive_extension.dart';
+import '../../utils/responsive_helper.dart';
+import '../../utils/responsive_widget.dart';
+import '../../widgets/app_message_notifier.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  LoginScreenState createState() => LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final AuthService _authService = AuthService();
   bool _rememberMe = true;
 
   @override
@@ -31,6 +32,26 @@ class LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final authController = ref.watch(authControllerProvider);
+
+    // Listen to auth controller state changes
+    ref.listen<AuthControllerState>(authControllerProvider, (previous, next) {
+      if (next.isError) {
+        AppNotifier.show(
+          context,
+          next.error ?? 'Login failed',
+          type: MessageType.error,
+        );
+      } else if (next.isSuccess) {
+        AppNotifier.show(
+          context,
+          'Login successful!',
+          type: MessageType.success,
+        );
+        _emailController.clear();
+        _passwordController.clear();
+      }
+    });
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -59,9 +80,12 @@ class LoginScreenState extends State<LoginScreen> {
                     desktop: 40.0,
                   ),
                 ),
-                onPressed: () {
-                  Navigator.pushReplacementNamed(context, '/auth');
-                },
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          Navigator.pushReplacementNamed(context, '/auth');
+                        },
               ),
             ),
           ],
@@ -184,6 +208,8 @@ class LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildFormContent(BuildContext context, ThemeData theme) {
+    final authController = ref.watch(authControllerProvider);
+
     return Form(
       key: _formKey,
       child: Column(
@@ -235,6 +261,7 @@ class LoginScreenState extends State<LoginScreen> {
           // 📧 Email Field
           TextFormField(
             controller: _emailController,
+            enabled: !authController.isLoading,
             style: context.responsiveBodyLarge.copyWith(
               color: theme.primaryColor,
             ),
@@ -267,6 +294,10 @@ class LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(context.smallSpacing),
                 borderSide: BorderSide(color: theme.primaryColor, width: 2),
               ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(context.smallSpacing),
+                borderSide: BorderSide(color: Colors.grey.shade400),
+              ),
             ),
             validator: (value) {
               if (value?.isEmpty ?? true) {
@@ -285,6 +316,7 @@ class LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
+            enabled: !authController.isLoading,
             style: context.responsiveBodyLarge.copyWith(
               color: theme.primaryColor,
             ),
@@ -317,6 +349,10 @@ class LoginScreenState extends State<LoginScreen> {
                 borderRadius: BorderRadius.circular(context.smallSpacing),
                 borderSide: BorderSide(color: theme.primaryColor, width: 2),
               ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(context.smallSpacing),
+                borderSide: BorderSide(color: Colors.grey.shade400),
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -328,11 +364,14 @@ class LoginScreenState extends State<LoginScreen> {
                     desktop: 28.0,
                   ),
                 ),
-                onPressed: () {
-                  setState(() {
-                    _obscurePassword = !_obscurePassword;
-                  });
-                },
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
               ),
             ),
             validator: (value) {
@@ -354,31 +393,42 @@ class LoginScreenState extends State<LoginScreen> {
                 children: [
                   Checkbox(
                     value: _rememberMe,
-                    onChanged: (value) => setState(() => _rememberMe = value!),
+                    onChanged:
+                        authController.isLoading
+                            ? null
+                            : (value) => setState(() => _rememberMe = value!),
                     activeColor: theme.primaryColor,
                   ),
                   Text('Remember Me', style: context.responsiveBodyMedium),
                 ],
               ),
               TextButton(
-                onPressed: () {
-                  if (_emailController.text.trim().isEmpty) {
-                    AppNotifier.show(
-                      context,
-                      'Please enter your Email first...',
-                      type: MessageType.warning,
-                    );
-                    return;
-                  }
-                  _authService.resetPassword(
-                    email: _emailController.text,
-                    context: context,
-                  );
-                },
+                onPressed:
+                    authController.isLoading
+                        ? null
+                        : () {
+                          if (_emailController.text.trim().isEmpty) {
+                            AppNotifier.show(
+                              context,
+                              'Please enter your Email first...',
+                              type: MessageType.warning,
+                            );
+                            return;
+                          }
+                          // Handle forgot password - you might want to add this to auth controller
+                          final authService = ref.read(authServiceProvider);
+                          authService.resetPassword(
+                            email: _emailController.text,
+                            context: context,
+                          );
+                        },
                 child: Text(
                   'Forgot Password?',
                   style: context.responsiveBodyMedium.copyWith(
-                    color: theme.primaryColor,
+                    color:
+                        authController.isLoading
+                            ? Colors.grey
+                            : theme.primaryColor,
                   ),
                 ),
               ),
@@ -401,26 +451,38 @@ class LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(context.smallSpacing),
                 ),
               ),
-              onPressed: () async {
-                if (_formKey.currentState!.validate()) {
-                  bool result = await _authService.login(
-                    email: _emailController.text.trim(),
-                    password: _passwordController.text.trim(),
-                    context: context,
-                    rememberMe: _rememberMe,
-                  );
-                  if (result) {
-                    _emailController.clear();
-                    _passwordController.clear();
-                  }
-                }
-              },
-              child: Text(
-                'Sign In',
-                style: context.responsiveTitleLarge.copyWith(
-                  color: Colors.white,
-                ),
-              ),
+              onPressed:
+                  authController.isLoading
+                      ? null
+                      : () async {
+                        if (_formKey.currentState!.validate()) {
+                          await ref
+                              .read(authControllerProvider.notifier)
+                              .signInWithEmail(
+                                email: _emailController.text.trim(),
+                                password: _passwordController.text.trim(),
+                                context: context,
+                              );
+                        }
+                      },
+              child:
+                  authController.isLoading
+                      ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                      : Text(
+                        'Sign In',
+                        style: context.responsiveTitleLarge.copyWith(
+                          color: Colors.white,
+                        ),
+                      ),
             ),
           ),
           SizedBox(height: context.smallSpacing),
@@ -440,13 +502,19 @@ class LoginScreenState extends State<LoginScreen> {
                   borderRadius: BorderRadius.circular(context.smallSpacing),
                 ),
               ),
-              onPressed: () {
-                Navigator.pushNamed(context, '/signUp');
-              },
+              onPressed:
+                  authController.isLoading
+                      ? null
+                      : () {
+                        Navigator.pushNamed(context, '/signUp');
+                      },
               child: Text(
                 'Don\'t have an account? SIGN UP',
                 style: context.responsiveBodyLarge.copyWith(
-                  color: theme.primaryColor,
+                  color:
+                      authController.isLoading
+                          ? Colors.grey
+                          : theme.primaryColor,
                 ),
               ),
             ),

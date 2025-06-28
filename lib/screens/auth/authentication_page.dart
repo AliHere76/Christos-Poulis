@@ -1,24 +1,24 @@
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:test_project/services/auth/auth_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:test_project/controllers/auth_controller.dart';
+import 'package:test_project/providers/auth_providers.dart';
 import 'package:test_project/utils/message_type.dart';
 import 'package:test_project/utils/responsive_extension.dart';
 import 'package:test_project/utils/responsive_widget.dart';
 import 'package:test_project/widgets/app_message_notifier.dart';
 import 'package:test_project/utils/responsive_helper.dart';
 
-class AuthenticationPage extends StatefulWidget {
+class AuthenticationPage extends ConsumerStatefulWidget {
   const AuthenticationPage({super.key});
 
   @override
-  AuthenticationPageState createState() => AuthenticationPageState();
+  ConsumerState<AuthenticationPage> createState() => _AuthenticationPageState();
 }
 
-class AuthenticationPageState extends State<AuthenticationPage> {
+class _AuthenticationPageState extends ConsumerState<AuthenticationPage> {
   final PageController _pageController = PageController();
-  final _authService = AuthService();
   int _currentPage = 0;
-  bool _isLoading = false;
 
   @override
   void initState() {
@@ -48,6 +48,8 @@ class AuthenticationPageState extends State<AuthenticationPage> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final Color primaryColor = const Color(0xFF0A2D7B);
+    final authState = ref.watch(authStateProvider);
+    final isLoading = authState.status == AuthStatus.loading;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -67,7 +69,7 @@ class AuthenticationPageState extends State<AuthenticationPage> {
           ),
 
           // Loading Overlay
-          if (_isLoading)
+          if (isLoading)
             Container(
               color: Colors.white,
               child: Center(
@@ -358,6 +360,9 @@ class AuthenticationPageState extends State<AuthenticationPage> {
   }
 
   Widget _buildGoogleButton(BuildContext context, double width) {
+    final authState = ref.watch(authStateProvider);
+    final authController = ref.read(authControllerProvider.notifier);
+
     return SizedBox(
       width: width,
       height: ResponsiveHelper.getValue(
@@ -390,29 +395,18 @@ class AuthenticationPageState extends State<AuthenticationPage> {
           ),
         ),
         onPressed:
-            _isLoading
+            authState.status == AuthStatus.loading
                 ? null
                 : () async {
-                  setState(() {
-                    _isLoading = true;
-                  });
-
-                  try {
-                    await _authService.signInWithGoogle(context: context);
-                  } catch (e) {
-                    if (mounted) {
-                      AppNotifier.show(
-                        context,
-                        'Google sign-in failed. Please try again.',
-                        type: MessageType.error,
-                      );
-                    }
-                  } finally {
-                    if (mounted) {
-                      setState(() {
-                        _isLoading = false;
-                      });
-                    }
+                  final result = await authController.signInWithGoogle(
+                    context: context,
+                  );
+                  if (mounted && !result) {
+                    AppNotifier.show(
+                      context,
+                      'Google sign-in failed. Please try again.',
+                      type: MessageType.error,
+                    );
                   }
                 },
       ),
